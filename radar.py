@@ -79,9 +79,7 @@ BenderLabs research targets:
 - Memory Lab           — long-term company knowledge persistence
 """
 
-STARS = {5: "⭐⭐⭐⭐⭐", 4: "⭐⭐⭐⭐", 3: "⭐⭐⭐", 2: "⭐⭐", 1: "⭐"}
-DIFF  = {"easy": "🟢", "medium": "🟡", "hard": "🔴",
-         "kolay": "🟢", "orta": "🟡", "zor": "🔴"}
+SCORE_LABEL = {5: "critical", 4: "high", 3: "medium", 2: "low"}
 
 # ─────────────────────────────────────────────
 # ARXIV API
@@ -318,49 +316,47 @@ def build_report(analyzed: list[dict], skipped: int,
     cnt = lambda s: sum(1 for p in analyzed if p["analysis"].get("score") == s)
 
     lines = [
-        "# 🔍 Research Radar",
+        "# Research Radar",
         f"**Date:** {today}  ",
-        f"**Model:** {model} (Ollama — local)  ",
+        f"**Model:** {model}  ",
         f"**Funnel:** {total_fetched} fetched → {total_filtered} keyword filter → "
-        f"{len(analyzed)+skipped} Stage 1 → **{len(analyzed)} analyzed**",
+        f"{len(analyzed)+skipped} Stage 1 → {len(analyzed)} analyzed",
         "", "---", "",
-        "## 📊 Summary", "",
-        "| Priority | Count |",
-        "|----------|-------|",
-        f"| ⭐⭐⭐⭐⭐ Critical — implement this week | {cnt(5)} |",
-        f"| ⭐⭐⭐⭐ High — implement this month     | {cnt(4)} |",
-        f"| ⭐⭐⭐ Medium — worth researching        | {cnt(3)} |",
-        f"| ⭐⭐ Low — good to know                 | {cnt(2)} |",
+        "## Summary", "",
+        "| Score | Count |",
+        "|-------|-------|",
+        f"| 5 — critical (implement this week) | {cnt(5)} |",
+        f"| 4 — high (implement this month)    | {cnt(4)} |",
+        f"| 3 — medium (worth researching)     | {cnt(3)} |",
+        f"| 2 — low (good to know)             | {cnt(2)} |",
         "", "---", "",
-        "## 📄 Applicable Papers", "",
+        "## Papers", "",
     ]
 
     if not analyzed:
         lines += [
-            "> No directly applicable techniques found in this period.",
-            "> Try `--days 14` for a wider search.",
+            "No applicable techniques found in this period.",
+            "Try --days 14 for a wider search.",
             "", "---", "",
         ]
     else:
         for i, p in enumerate(analyzed, 1):
-            a    = p["analysis"]
-            s    = a.get("score", 2)
-            mod  = ", ".join(a.get("modules", [])) or "—"
-            dif  = a.get("difficulty", "—")
-            icon = DIFF.get(dif, "⚪")
+            a   = p["analysis"]
+            s   = a.get("score", 2)
+            mod = ", ".join(a.get("modules", [])) or "—"
+            dif = a.get("difficulty", "—")
 
             lines += [
                 f"### {i}. {p['title']}",
-                f"**Link:** {p['link']}  ",
-                f"**Score:** {STARS.get(s,'⭐⭐')} ({s}/5) · "
-                f"**Difficulty:** {icon} {dif} · **Modules:** {mod}",
-                f"**Why this score:** {a.get('score_reason', '')}",
+                f"{p['link']}  ",
+                f"score: {s}/5 ({SCORE_LABEL.get(s, 'low')}) · difficulty: {dif} · modules: {mod}",
+                f"_{a.get('score_reason', '')}_",
                 "",
                 "**What it does:**",
                 a.get("summary", ""), "",
                 "**The technique:**",
                 a.get("technique", ""), "",
-                "**How to implement in BenderEdge:**",
+                "**How to implement:**",
                 a.get("how_to_implement", ""), "",
                 "**Expected gain:**",
                 a.get("expected_gain", ""), "",
@@ -386,17 +382,17 @@ def main():
     date_str = datetime.now().strftime("%Y-%m-%d")
     REPORTS_DIR.mkdir(exist_ok=True)
 
-    print(f"\n{'═'*60}")
-    print(f"  🔍 Research Radar  ·  {date_str}")
+    print(f"\n{'─'*60}")
+    print(f"  Research Radar  ·  {date_str}")
     print(f"  Model: {args.model}")
-    print(f"{'═'*60}\n")
+    print(f"{'─'*60}\n")
 
     # ── OLLAMA CHECK ────────────────────────────
     if not args.no_llm:
         try:
             r      = requests.get("http://localhost:11434/api/tags", timeout=5)
             models = [m["name"] for m in r.json().get("models", [])]
-            print(f"✅ Ollama connected · Models: {', '.join(models)}\n")
+            print(f"Ollama connected · Models: {', '.join(models)}\n")
             if not any(args.model in m for m in models):
                 print(f"⚠️  {args.model} not found. Pulling...")
                 import os; os.system(f"ollama pull {args.model}")
@@ -407,7 +403,7 @@ def main():
     # ── FETCH ───────────────────────────────────
     all_papers:   list[dict] = []
     total_fetched = 0
-    print(f"📡 Fetching last {args.days} days from ArXiv API...\n")
+    print(f"Fetching last {args.days} days from ArXiv API...\n")
 
     for query, label, is_direct in ARXIV_QUERIES:
         print(f"  {label}")
@@ -427,7 +423,7 @@ def main():
     all_papers     = unique
     total_filtered = len(all_papers)
 
-    print(f"✅ {total_filtered} relevant papers ({total_fetched} fetched)\n")
+    print(f"{total_filtered} relevant papers ({total_fetched} fetched)\n")
 
     if not all_papers:
         print("⚠️  No papers found. Try --days 14")
@@ -440,9 +436,9 @@ def main():
     skipped_count   = 0
 
     if not args.no_llm:
-        print(f"🤖 2-Stage Analysis · {len(to_process)} papers · no rate limit\n")
-        print(f"   Stage 1: Is there an implementable technique? (strict filter)")
-        print(f"   Stage 2: Deep technical analysis (only papers that pass)\n")
+        print(f"2-Stage Analysis · {len(to_process)} papers\n")
+        print(f"  Stage 1: implementable technique? (strict filter)")
+        print(f"  Stage 2: deep technical analysis (only papers that pass)\n")
         analyzed_papers, skipped_count = analyze_all(to_process, args.model)
     else:
         print("⚡ LLM skipped (--no-llm)\n")
@@ -457,10 +453,10 @@ def main():
     out.write_text(report, encoding="utf-8")
 
     passed = len([p for p in analyzed_papers if p.get("analysis", {}).get("score", 0) > 1])
-    print(f"\n{'═'*60}")
-    print(f"  ✅ {passed} papers in report · {skipped_count} eliminated")
-    print(f"  📄 {out}")
-    print(f"{'═'*60}\n")
+    print(f"\n{'─'*60}")
+    print(f"  {passed} papers in report · {skipped_count} eliminated")
+    print(f"  {out}")
+    print(f"{'─'*60}\n")
 
 
 if __name__ == "__main__":
